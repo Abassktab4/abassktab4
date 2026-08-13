@@ -10,6 +10,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/1.0.17/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
 <style>
   /* ===================== SHARED SHELL (نظام موحد) ===================== */
   *{box-sizing:border-box;}
@@ -72,6 +75,46 @@
   #page-attendance, #page-correspondence{ display:block; }
 
   /* ===================== الماسح الضوئي المشترك (سكنر المستندات) ===================== */
+  /* ===================== بوابة تسجيل الدخول بگوگل ===================== */
+  #authGate{
+    position:fixed; inset:0; z-index:9999; background:linear-gradient(135deg,#0d1b34,#14264a 60%,#1c3566);
+    display:flex; align-items:center; justify-content:center; padding:20px; font-family:Arial, Tajawal, sans-serif;
+  }
+  #authGate.hidden{display:none;}
+  .auth-card{
+    background:#fff; border-radius:16px; padding:34px 28px; max-width:380px; width:100%;
+    text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.4); direction:rtl;
+  }
+  .auth-card .auth-logo{font-size:40px; margin-bottom:6px;}
+  .auth-card h2{margin:6px 0 4px; color:#14264a; font-size:18px;}
+  .auth-card p{color:#5a6072; font-size:12.5px; margin:0 0 22px; line-height:1.7;}
+  .auth-google-btn{
+    display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+    background:#fff; color:#3c4043; border:1px solid #dadce0; border-radius:8px;
+    padding:11px 16px; font-size:14px; font-weight:bold; cursor:pointer; font-family:Arial, sans-serif;
+    transition:box-shadow .15s, background .15s;
+  }
+  .auth-google-btn:hover{ box-shadow:0 2px 8px rgba(0,0,0,0.18); background:#f7f8f8; }
+  .auth-google-btn svg{width:18px; height:18px; flex-shrink:0;}
+  .auth-status-msg{margin-top:14px; font-size:12px; color:#c9270e; min-height:16px; font-weight:bold;}
+  .auth-loading{margin-top:14px; font-size:12px; color:#5a6072;}
+  .auth-userbox{
+    display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.25); border-radius:9px; padding:6px 10px; color:#fff;
+    font-family:Arial, sans-serif; font-size:12px;
+  }
+  .auth-userbox img{width:24px; height:24px; border-radius:50%;}
+  .auth-userbox button{
+    background:rgba(255,255,255,0.14); color:#fff; border:none; border-radius:6px;
+    padding:5px 9px; font-size:11px; cursor:pointer; font-family:Arial, sans-serif; font-weight:bold;
+  }
+  .auth-userbox button:hover{background:rgba(255,255,255,0.24);}
+  .sync-status{font-size:11.5px; color:#333; font-family:Arial, sans-serif;}
+  .sync-status.ok{color:#1a7d34;}
+  .sync-status.busy{color:#8d6e00;}
+  .sync-status.err{color:#c9270e;}
+  #ubbCloudPush, #ubbCloudPull{background:#6a3fa0; color:#fff;}
+
   .scan-overlay{
     display:none; position:fixed; inset:0; background:rgba(10,20,35,0.72);
     z-index:300; align-items:center; justify-content:center; padding:16px;
@@ -846,6 +889,21 @@
 </head>
 <body>
 
+<!-- ===================== بوابة تسجيل الدخول بحساب گوگل ===================== -->
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">🔐</div>
+    <h2>نظام مركز صيانة البدير الموحّد</h2>
+    <p>يرجى تسجيل الدخول بحساب گوگل المخوّل للوصول إلى النظام ومزامنة البيانات بين الأجهزة.</p>
+    <button type="button" id="authGoogleBtn" class="auth-google-btn">
+      <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 7 29.6 4.5 24 4.5c-7.6 0-14.2 4.3-17.7 10.2z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 35.4 26.9 36.5 24 36.5c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9.7 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.6 5.4C41.5 35.9 44 30.4 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+      تسجيل الدخول بحساب Google
+    </button>
+    <div class="auth-status-msg" id="authStatusMsg"></div>
+    <div class="auth-loading" id="authLoadingMsg" style="display:none;">⏳ جارٍ التحقق من الجلسة...</div>
+  </div>
+</div>
+
 <div class="app-switch-bar">
   <div class="switch-title-wrap">
     <span class="switch-title">نظام مركز صيانة البدير الموحّد</span>
@@ -861,6 +919,11 @@
   <button class="switch-btn" data-page="cadre">👥 الكادر</button>
   <button class="switch-btn" data-page="print">🖨️ طباعة رسمية</button>
   <button class="switch-btn" data-page="archive">🗑️ الأرشيف<span id="archiveCount" class="notif-count"></span></button>
+  <div class="auth-userbox" id="authUserbox" style="display:none;">
+    <img id="authUserPhoto" src="" alt="">
+    <span id="authUserName"></span>
+    <button type="button" id="authSignOutBtn">خروج</button>
+  </div>
 </div>
 
 <div class="unified-backup-bar">
@@ -870,8 +933,249 @@
     <label for="ubbImport">⬆️ استعادة نسخة احتياطية موحدة</label>
     <input type="file" id="ubbImport" accept="application/json" style="display:none;">
     <button id="ubbOnedrive" type="button">☁️ إرسال عبر OneDrive</button>
+    <button id="ubbCloudPush" type="button">⬆️☁️ رفع للسحابة الآن</button>
+    <button id="ubbCloudPull" type="button">⬇️☁️ تنزيل من السحابة</button>
+    <span class="sync-status" id="cloudSyncStatus">☁️ المزامنة: —</span>
   </div>
 </div>
+
+<script>
+/* ======================================================================
+   تسجيل الدخول بحساب Google + مزامنة البيانات عبر Firestore
+   ====================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCxEoFMCx8PI1rGlfwGL_oRzbbrDsqHnvg",
+  authDomain: "badir-system.firebaseapp.com",
+  projectId: "badir-system",
+  storageBucket: "badir-system.firebasestorage.app",
+  messagingSenderId: "964558802838",
+  appId: "1:964558802838:web:ec4f88f1502f8b097397b7"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+/* ⚠️ قائمة الحسابات المخوّلة بالدخول — أضف إيميلات گوگل الخاصة بالموظفين المخوّلين هنا.
+   إذا تُركت القائمة فارغة [] فسيُسمح لأي حساب گوگل بالدخول (غير مستحسن لبيانات حساسة).
+   ملاحظة مهمة: هذا الفحص يجري داخل المتصفح فقط وليس حماية حقيقية — يجب أيضًا ضبط
+   "قواعد أمان Firestore" (Firestore Security Rules) من لوحة تحكم Firebase بحيث
+   تسمح بالقراءة/الكتابة فقط لحسابات هذه القائمة، وإلا يبقى أي شخص يملك الكود
+   قادرًا تقنيًا على الوصول لقاعدة البيانات مباشرة. */
+const ALLOWED_EMAILS = [
+  // "example@gmail.com",
+];
+
+const DEVICE_ID_KEY = 'budair_device_id';
+let DEVICE_ID = null;
+try{
+  DEVICE_ID = localStorage.getItem(DEVICE_ID_KEY);
+  if(!DEVICE_ID){
+    DEVICE_ID = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,10);
+    localStorage.setItem(DEVICE_ID_KEY, DEVICE_ID);
+  }
+}catch(e){ DEVICE_ID = 'dev_unknown'; }
+
+const CLOUD_DOC_REF = fbDb.collection('budair_unified_backup').doc('main');
+
+function setAuthStatusMsg(msg){
+  const el = document.getElementById('authStatusMsg');
+  if(el) el.textContent = msg || '';
+}
+function setSyncStatus(text, cls){
+  const el = document.getElementById('cloudSyncStatus');
+  if(!el) return;
+  el.textContent = '☁️ المزامنة: ' + text;
+  el.className = 'sync-status' + (cls ? ' ' + cls : '');
+}
+function showAuthGate(showLoading){
+  const gate = document.getElementById('authGate');
+  const btn = document.getElementById('authGoogleBtn');
+  const loading = document.getElementById('authLoadingMsg');
+  if(gate) gate.classList.remove('hidden');
+  if(btn) btn.style.display = showLoading ? 'none' : 'flex';
+  if(loading) loading.style.display = showLoading ? 'block' : 'none';
+}
+function hideAuthGate(){
+  const gate = document.getElementById('authGate');
+  if(gate) gate.classList.add('hidden');
+}
+
+const CloudSync = {
+  ready:false,
+  suppressPush:false,
+  pushTimer:null,
+  unsubscribe:null,
+  lastPushedAt:0,
+
+  schedulePush(){
+    if(!this.ready || this.suppressPush) return;
+    clearTimeout(this.pushTimer);
+    this.pushTimer = setTimeout(()=>{ this.push(); }, 2500);
+  },
+
+  async push(reason){
+    if(!this.ready) return;
+    try{
+      setSyncStatus('جارٍ الرفع...', 'busy');
+      const payload = buildUnifiedBackupPayload();
+      payload.meta = {
+        updatedAtMs: Date.now(),
+        updatedAtIso: new Date().toISOString(),
+        deviceId: DEVICE_ID,
+        byEmail: (fbAuth.currentUser && fbAuth.currentUser.email) || 'غير معروف',
+        byName: (fbAuth.currentUser && fbAuth.currentUser.displayName) || 'غير معروف'
+      };
+      this.lastPushedAt = payload.meta.updatedAtMs;
+      await CLOUD_DOC_REF.set(payload);
+      setSyncStatus('تمت آخر مزامنة ' + new Date().toLocaleTimeString('ar-IQ'), 'ok');
+    }catch(err){
+      console.error('CloudSync.push error', err);
+      setSyncStatus('تعذّر الرفع — تحقق من الاتصال', 'err');
+    }
+  },
+
+  async pullOnce(){
+    try{
+      const snap = await CLOUD_DOC_REF.get();
+      if(!snap.exists) return null;
+      return snap.data();
+    }catch(err){
+      console.error('CloudSync.pullOnce error', err);
+      setSyncStatus('تعذّر التنزيل من السحابة', 'err');
+      return null;
+    }
+  },
+
+  async applyRemote(data, opts){
+    opts = opts || {};
+    this.suppressPush = true;
+    try{
+      const ok = await applyUnifiedBackupPayload(data);
+      if(ok && opts.toast !== false && typeof showToast === 'function'){
+        showToast('🔄 تم تحديث البيانات من السحابة');
+      }
+      if(data.meta) this.lastPushedAt = data.meta.updatedAtMs || 0;
+      setSyncStatus('محدّثة (' + new Date().toLocaleTimeString('ar-IQ') + ')', 'ok');
+    }finally{
+      setTimeout(()=>{ this.suppressPush = false; }, 300);
+    }
+  },
+
+  async manualPull(){
+    const data = await this.pullOnce();
+    if(!data){ alert('لا توجد نسخة محفوظة في السحابة بعد.'); return; }
+    if(!confirm('سيتم استبدال البيانات الحالية في هذا الجهاز بآخر نسخة محفوظة في السحابة. متابعة؟')) return;
+    await this.applyRemote(data, {toast:false});
+    alert('تم تحديث البيانات من السحابة بنجاح.');
+  },
+
+  startListening(){
+    if(this.unsubscribe) this.unsubscribe();
+    this.unsubscribe = CLOUD_DOC_REF.onSnapshot((snap)=>{
+      if(!snap.exists) return;
+      const data = snap.data();
+      if(!data || !data.meta) return;
+      if(data.meta.deviceId === DEVICE_ID) return; // تجاهل تحديثاتنا نحن
+      if(data.meta.updatedAtMs && data.meta.updatedAtMs <= this.lastPushedAt) return;
+      this.applyRemote(data);
+    }, (err)=>{ console.error('CloudSync onSnapshot error', err); });
+  },
+
+  async initAfterLogin(){
+    this.ready = true;
+    const data = await this.pullOnce();
+    if(data){
+      // نطبّق نسخة السحابة تلقائيًا عند الدخول باعتبارها المصدر المشترك بين الأجهزة
+      await this.applyRemote(data, {toast:false});
+    } else {
+      // لا توجد نسخة سحابية بعد — نرفع ما هو محفوظ محليًا كأول نسخة
+      await this.push();
+    }
+    this.startListening();
+  },
+
+  stop(){
+    this.ready = false;
+    if(this.unsubscribe){ this.unsubscribe(); this.unsubscribe = null; }
+    clearTimeout(this.pushTimer);
+  }
+};
+
+/* اعتراض أي حفظ في localStorage لجدولة رفع تلقائي مؤجَّل (debounced) للسحابة،
+   دون الحاجة لتعديل كل دالة حفظ عبر ملف البرنامج بالكامل. */
+(function(){
+  const _origSetItem = Storage.prototype.setItem;
+  Storage.prototype.setItem = function(key, value){
+    _origSetItem.apply(this, arguments);
+    if(this === window.localStorage && key !== DEVICE_ID_KEY){
+      CloudSync.schedulePush();
+    }
+  };
+})();
+
+fbAuth.onAuthStateChanged(async function(user){
+  if(user){
+    const email = (user.email || '').toLowerCase();
+    const allowed = ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.map(e=>e.toLowerCase()).includes(email);
+    if(!allowed){
+      setAuthStatusMsg('⛔ هذا الحساب (' + user.email + ') غير مخوّل بالدخول إلى النظام.');
+      showAuthGate(false);
+      CloudSync.stop();
+      try{ await fbAuth.signOut(); }catch(e){}
+      return;
+    }
+    setAuthStatusMsg('');
+    hideAuthGate();
+    const box = document.getElementById('authUserbox');
+    const photo = document.getElementById('authUserPhoto');
+    const name = document.getElementById('authUserName');
+    if(box) box.style.display = 'flex';
+    if(photo) photo.src = user.photoURL || '';
+    if(name) name.textContent = user.displayName || user.email;
+    if(typeof Auth !== 'undefined' && Auth.session){
+      Auth.session = { username: user.email, role:'admin', name: user.displayName || user.email };
+    }
+    await CloudSync.initAfterLogin();
+  } else {
+    CloudSync.stop();
+    const box = document.getElementById('authUserbox');
+    if(box) box.style.display = 'none';
+    showAuthGate(false);
+  }
+});
+
+showAuthGate(true); // إظهار مؤشر التحقق أولاً ريثما يتأكد فايربيس من وجود جلسة محفوظة
+
+fbAuth.getRedirectResult().catch(function(err){
+  console.error('Google redirect sign-in error', err);
+  if(err && err.code && err.code !== 'auth/popup-closed-by-user'){
+    setAuthStatusMsg('⚠️ تعذّر تسجيل الدخول: ' + (err.message || err.code));
+  }
+});
+
+document.getElementById('authGoogleBtn').addEventListener('click', function(){
+  setAuthStatusMsg('');
+  showAuthGate(true);
+  fbAuth.signInWithRedirect(googleProvider).catch(function(err){
+    console.error('Google sign-in error', err);
+    showAuthGate(false);
+    setAuthStatusMsg('⚠️ تعذّر تسجيل الدخول: ' + (err && err.message ? err.message : 'خطأ غير معروف'));
+  });
+});
+
+document.getElementById('authSignOutBtn').addEventListener('click', function(){
+  if(!confirm('تسجيل الخروج من النظام؟')) return;
+  fbAuth.signOut();
+});
+
+document.getElementById('ubbCloudPush').addEventListener('click', function(){
+  CloudSync.push('يدوي');
+});
+document.getElementById('ubbCloudPull').addEventListener('click', function(){
+  CloudSync.manualPull();
+});
+</script>
 
 <div class="scan-overlay" id="scanOverlay">
   <div class="scan-box">
@@ -6820,22 +7124,14 @@ function exportUnifiedBackup(){
   else alert('تم تنزيل النسخة الاحتياطية الموحدة بنجاح.');
 }
 
-async function importUnifiedBackup(file){
-  if(!file) return;
-  let text;
-  try{ text = await file.text(); }
-  catch(err){ alert('تعذّرت قراءة الملف.'); return; }
-  let parsed;
-  try{ parsed = JSON.parse(text); }
-  catch(err){ alert('الملف غير صالح أو تالف.'); return; }
-
+/* applyUnifiedBackupPayload: يطبّق حمولة نسخة احتياطية موحدة (parsed JSON) على البيانات الحالية.
+   يُستخدم من قبل الاستعادة اليدوية (استيراد ملف) ومن نظام مزامنة السحابة Firestore. */
+async function applyUnifiedBackupPayload(parsed){
   const att = parsed.attendance || null;
   const cad = parsed.cadre || null;
   const corr = parsed.correspondence || null;
   const na = parsed.notesAlerts || null;
-  if(!att && !cad && !corr && !na){ alert('لا توجد بيانات معروفة داخل هذا الملف.'); return; }
-
-  if(!confirm('سيتم استبدال جميع بيانات "موقف البصمة" و"الكادر" و"الصادر والوارد" الحالية بمحتوى هذه النسخة الاحتياطية. هل تريد المتابعة؟')) return;
+  if(!att && !cad && !corr && !na) return false;
 
   if(att){
     if(Array.isArray(att.records)) records = att.records;
@@ -6886,7 +7182,30 @@ async function importUnifiedBackup(file){
     if(window.NotesAlerts) NotesAlerts.render();
   }
 
-  alert('تمت استعادة النسخة الاحتياطية الموحدة بنجاح.');
+  return true;
+}
+
+async function importUnifiedBackup(file){
+  if(!file) return;
+  let text;
+  try{ text = await file.text(); }
+  catch(err){ alert('تعذّرت قراءة الملف.'); return; }
+  let parsed;
+  try{ parsed = JSON.parse(text); }
+  catch(err){ alert('الملف غير صالح أو تالف.'); return; }
+
+  const hasKnown = parsed.attendance || parsed.cadre || parsed.correspondence || parsed.notesAlerts;
+  if(!hasKnown){ alert('لا توجد بيانات معروفة داخل هذا الملف.'); return; }
+
+  if(!confirm('سيتم استبدال جميع بيانات "موقف البصمة" و"الكادر" و"الصادر والوارد" الحالية بمحتوى هذه النسخة الاحتياطية. هل تريد المتابعة؟')) return;
+
+  const ok = await applyUnifiedBackupPayload(parsed);
+  if(ok){
+    alert('تمت استعادة النسخة الاحتياطية الموحدة بنجاح.');
+    if(window.CloudSync) CloudSync.push('استعادة من ملف محلي');
+  } else {
+    alert('لا توجد بيانات معروفة داخل هذا الملف.');
+  }
 }
 
 /* ===================== النسخ الاحتياطي التلقائي (كل 12 ساعة) ===================== */
